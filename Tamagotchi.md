@@ -1,11 +1,22 @@
-## Creature growth process
+## Stages of life
 ```mermaid
   stateDiagram-v2
-    state if_state <<choice>>
-    EGG --> BABY: time_to_evolve()
-    BABY --> if_state: time_to_evolve()
-    if_state --> MATURE_SICK: value < value_threshold
-    if_state --> MATURE_HEALTY: value > value_threshold
+    state TEEN_CHOICE <<choice>>
+    state ADULT_CHOICE <<choice>>
+    EGG --> BABY
+    BABY --> CHILD: time > 65 minutes
+    CHILD --> TEEN_CHOICE: time > 3 age
+    TEEN_CHOICE --> TEENAGER_1
+    TEEN_CHOICE --> TEENAGER_2
+    TEENAGER_1 --> ADULT_CHOICE: time > 6 age
+    TEENAGER_2 --> ADULT_CHOICE: time > 6 age
+    ADULT_CHOICE --> ADULT_1
+    ADULT_CHOICE --> ADULT_2
+    ADULT_CHOICE --> ADULT_3
+    ADULT_CHOICE --> ADULT_4
+    ADULT_4 --> SPECIAL
+    ADULT_CHOICE --> ADULT_5
+    ADULT_CHOICE --> ADULT_6
 ```
 
 ## Creature states
@@ -20,18 +31,29 @@
     CLEANING --> IDLE
 ```
 
-## Creature attributes
+## Software cycles
+```mermaid
+  flowchart LR
+    INC_TIME[Increase time] --> USER_ACTION
+    EVOLVE[Evolve?] --> USER_ACTION
+    USER_ACTION[Handle user actions] --> fr
+```
+
+## Classes
 ```mermaid
   classDiagram
     PHASE <|-- EGG
     PHASE <|-- BABY
     PHASE <|-- MATURE
-    PHASE: +int age
-    PHASE: +int energy
-    PHASE: +int waste
-    PHASE: +int happiness
-    PHASE: +int hunger
-    PHASE: +int time_to_evolve()
+    PHASE: +int quality_care
+    PHASE: +int happy_hearts
+    PHASE: +int hungry_hearts
+    PHASE: +int weight 
+    PHASE: +int discipline 
+    PHASE: +int waste    
+    PHASE: +int seek
+    
+    
     PHASE: +int eat()
     PHASE: +int sleep()
     PHASE: +int clean()
@@ -40,5 +62,14 @@
     class BABY{
     }
     class MATURE{
+    }
+    class WORLD{
+    +int time
+    + evolve()
+    }
+    
+    class EVENTS{
+    +
+    + 
     }
 ```
