@@ -20,6 +20,71 @@ from IPython.lib.display import Code
 from pygame.locals import *
 
 
+class Creature:
+    AGE_HATCH = 8  # changed. prev value: 128
+    AGE_MATURE = 796
+    AGE_DEATHFROMNATURALCAUSES = 8192
+    HUNGER_CANEAT = 32
+    HUNGER_NEEDSTOEAT_LEVEL = 128
+    HUNGER_SICKFROMNOTEATING = 256
+    HUNGER_DEADFROMNOTEATING_LEVEL = 512
+    ENERGY_CANSLEEP = 150
+    ENERGY_TIRED_LEVEL = 64
+    ENERGY_PASSOUT = 8
+    WASTE_EXPUNGE_LEVEL = 256
+
+    class CREATURE_STATES(Enum):
+        IDLE = 0
+        EAT = 1
+        CLEAN = 2
+        SLEEP = 3
+        DEATH = 4
+
+    def __init__(self):
+        self.current_state_counter = 0
+        self.set_current_state(self.CREATURE_STATES.IDLE)
+        self.pet = {'hunger': 0, 'energy': 256, 'waste': 0, 'age': 0, 'happiness': 0}
+        self.stage = 0
+
+    def set_current_state(self, state):
+        self.current_state_counter = 0
+        self.current_state = state
+
+    def handle_evolution(self):
+        if self.stage == 0 and self.pet['age'] > self.AGE_HATCH:
+            print("evolving")
+            self.stage += 1
+            self.set_current_state(self.current_state)
+        if self.stage == 1 and self.pet['age'] > self.AGE_MATURE:
+            print("evolving")
+            self.stage += 1
+            self.set_current_state(self.current_state)
+
+    def do_random_event(self):
+        num = random.randint(0, 31)
+        if num == 12:
+            self.pet['hunger'] += 1
+        elif num == 16:
+            self.pet['energy'] -= 1
+        elif num == 18:
+            self.pet['energy'] += 1
+        elif num == 20:
+            self.pet['waste'] += 1
+        elif num == 7:
+            self.pet['happiness'] += 1
+        elif num == 4:
+            self.pet['happiness'] -= 1
+
+    def do_cycle(self):
+        self.do_random_event()
+        self.pet['hunger'] += 1
+        self.pet['waste'] += 1
+        self.pet['energy'] -= 1
+        self.pet['age'] += 2
+        if self.pet['waste'] >= self.WASTE_EXPUNGE_LEVEL:
+            self.pet['happiness'] -= 1
+
+
 class TamagotchiEmulator:
     if platform.system() == 'Windows':
         os.environ['SDL_VIDEODRIVER'] = 'windib'
@@ -124,58 +189,14 @@ class TamagotchiEmulator:
         (0x2, 0x2, 0x2, 0x2, 0x2, 0x2, 0x2, 0x2, 0x2, 0x2, 0x2, 0x2, 0x2, 0x2, 0x2, 0x2, 0x2, 0x2, 0x2, 0x2,
          0x2, 0x2, 0x2, 0x2, 0x2, 0x2, 0x2, 0x2, 0x2, 0x2, 0x2, 0x2),)
 
-    AGE_HATCH = 8  # changed. prev value: 128
-    AGE_MATURE = 796
-    AGE_DEATHFROMNATURALCAUSES = 8192
-    HUNGER_CANEAT = 32
-    HUNGER_NEEDSTOEAT_LEVEL = 128
-    HUNGER_SICKFROMNOTEATING = 256
-    HUNGER_DEADFROMNOTEATING_LEVEL = 512
-    ENERGY_CANSLEEP = 150
-    ENERGY_TIRED_LEVEL = 64
-    ENERGY_PASSOUT = 8
-    WASTE_EXPUNGE_LEVEL = 256
-
     class COMMANDS(Enum):
         NONE = -1
         EAT = 0
         CLEAN = 1
         SLEEP = 3
 
-    class CREATURE_STATES(Enum):
-        IDLE = 0
-        EAT = 1
-        CLEAN = 2
-        SLEEP = 3
-        DEATH = 4
-
     def __init__(self):
-        self.current_state_counter = 0
-
-    @staticmethod
-    def do_random_event(pet):
-        num = random.randint(0, 31)
-        if num == 12:
-            pet['hunger'] += 1
-        elif num == 16:
-            pet['energy'] -= 1
-        elif num == 18:
-            pet['energy'] += 1
-        elif num == 20:
-            pet['waste'] += 1
-        elif num == 7:
-            pet['happiness'] += 1
-        elif num == 4:
-            pet['happiness'] -= 1
-
-    def do_cycle(self, pet):
-        self.do_random_event(pet)
-        pet['hunger'] += 1
-        pet['waste'] += 1
-        pet['energy'] -= 1
-        pet['age'] += 2
-        if pet['waste'] >= self.WASTE_EXPUNGE_LEVEL:
-            pet['happiness'] -= 1
+        self.creature = Creature()
 
     @staticmethod
     def get_random_offset():
@@ -224,20 +245,15 @@ class TamagotchiEmulator:
         has_overlay = True
         return 0, self.OVERLAY_EAT, has_overlay
 
-    def set_current_state(self, state):
-        self.current_state_counter = 0
-        self.current_state = state
-
     def main(self):
         g_interface = GraphicalInterface();
 
         # Tamagotchi
-        pet = {'hunger': 0, 'energy': 256, 'waste': 0, 'age': 0, 'happiness': 0}
 
         # Counters
         anim_offset = 0
         selid = 0
-        stage = 0
+
         anim_frame = 0
         overlay_frame = 0
 
@@ -245,13 +261,10 @@ class TamagotchiEmulator:
         has_overlay = False
         update_game = False
 
-        # States
-        self.set_current_state(self.CREATURE_STATES.IDLE)
-
         current_anim = self.IDLE_EGG
         overlay_anim = self.OVERLAY_ZZZ
 
-        self.current_state_counter = 0
+        # self.current_state_counter = 0
 
         # Game loop
         while True:
@@ -269,78 +282,80 @@ class TamagotchiEmulator:
                 selid = new_selid
                 print(str(curr_command))
 
-            if stage > 0:
+            if self.creature.stage > 0:
                 if curr_command == self.COMMANDS.EAT:
-                    self.set_current_state(self.CREATURE_STATES.EAT)
+                    self.creature.set_current_state(self.creature.CREATURE_STATES.EAT)
                 elif curr_command == self.COMMANDS.CLEAN:
-                    self.set_current_state(self.CREATURE_STATES.CLEAN)
+                    self.creature.set_current_state(self.creature.CREATURE_STATES.CLEAN)
                 elif curr_command == self.COMMANDS.SLEEP:
-                    if pet['energy'] <= self.ENERGY_CANSLEEP:
-                        self.set_current_state(self.CREATURE_STATES.SLEEP)
+                    if self.creature.pet['energy'] <= self.ENERGY_CANSLEEP:
+                        self.creature.set_current_state(self.creature.CREATURE_STATES.SLEEP)
 
             # Game logic
             if update_game:
-                stage = self.handle_evolution(pet, stage)
-                if self.current_state == self.CREATURE_STATES.IDLE:
+                self.creature.handle_evolution()
+                if self.creature.current_state == self.creature.CREATURE_STATES.IDLE:
                     pass
-                if self.current_state == self.CREATURE_STATES.EAT:
+                if self.creature.current_state == self.creature.CREATURE_STATES.EAT:
                     print(len(overlay_anim))
-                    if self.current_state_counter == 5:
+                    if self.creature.current_state_counter == 5:
                         print("eat finish")
-                        self.set_current_state(self.CREATURE_STATES.IDLE)
-                        pet['hunger'] = 0
-                elif self.current_state == self.CREATURE_STATES.SLEEP:
+                        self.creature.set_current_state(self.creature.CREATURE_STATES.IDLE)
+                        self.creature.pet['hunger'] = 0
+                elif self.creature.current_state == self.creature.CREATURE_STATES.SLEEP:
                     print("sleeping")
-                    pet['energy'] += 8
-                    if pet['energy'] >= 256:
+                    self.creature.pet['energy'] += 8
+                    if self.creature.pet['energy'] >= 256:
                         print("sleep finish")
-                        self.set_current_state(self.CREATURE_STATES.IDLE)
-                elif self.current_state == self.CREATURE_STATES.CLEAN:
+                        self.creature.set_current_state(self.creature.CREATURE_STATES.IDLE)
+                elif self.creature.current_state == self.creature.CREATURE_STATES.CLEAN:
                     print("cleaninig")
-                    if self.current_state_counter == 33:
+                    if self.creature.current_state_counter == 33:
                         print("clean finish")
-                        self.set_current_state(self.CREATURE_STATES.IDLE)
-                        pet['waste'] = 0
+                        self.creature.set_current_state(self.creature.CREATURE_STATES.IDLE)
+                        self.creature.pet['waste'] = 0
 
-                if self.current_state == self.CREATURE_STATES.IDLE:
+                if self.creature.current_state == self.creature.CREATURE_STATES.IDLE:
                     print("do_cycle")
-                    self.do_cycle(pet)
-                if pet['energy'] < self.ENERGY_PASSOUT:
-                    if stage > 0:
-                        pet['happiness'] -= 64
-                    self.set_current_state(self.CREATURE_STATES.SLEEP)
+                    self.creature.do_cycle()
+                if self.creature.pet['energy'] < self.creature.ENERGY_PASSOUT:
+                    if self.creature.stage > 0:
+                        self.creature.pet['happiness'] -= 64
+                    self.creature.set_current_state(self.creature.CREATURE_STATES.SLEEP)
                     # current_anim, overlay_anim, has_overlay = self.trigger_sleep_animation(stage)
-                if pet['hunger'] >= self.HUNGER_DEADFROMNOTEATING_LEVEL or pet['age'] >= self.AGE_DEATHFROMNATURALCAUSES:
-                    self.set_current_state(self.CREATURE_STATES.DEATH)
+                if self.creature.pet['hunger'] >= self.creature.HUNGER_DEADFROMNOTEATING_LEVEL or self.creature.pet[
+                    'age'] >= self.creature.AGE_DEATHFROMNATURALCAUSES:
+                    self.creature.set_current_state(self.creature.CREATURE_STATES.DEATH)
 
-                if self.current_state != self.CREATURE_STATES.DEATH:
-                    if self.current_state == self.CREATURE_STATES.CLEAN:
+                if self.creature.current_state != self.creature.CREATURE_STATES.DEATH:
+                    if self.creature.current_state == self.creature.CREATURE_STATES.CLEAN:
                         anim_offset -= 1
                     else:
                         anim_frame = self.get_next_frame(current_anim, anim_frame)
                         anim_offset = self.get_random_offset()
-                if self.current_state == self.CREATURE_STATES.IDLE and self.current_state_counter == 0:
+                if self.creature.current_state == self.creature.CREATURE_STATES.IDLE and self.creature.current_state_counter == 0:
                     pygame.time.set_timer(g_interface.UPDATE_GAME_EVENT, g_interface.SECOND)
-                    current_anim, has_overlay = self.trigger_idle_animation(stage)
-                elif self.current_state == self.CREATURE_STATES.SLEEP and self.current_state_counter == 0:
-                    current_anim, overlay_anim, has_overlay = self.trigger_sleep_animation(stage)
-                elif self.current_state == self.CREATURE_STATES.DEATH and self.current_state_counter == 0:
+                    current_anim, has_overlay = self.trigger_idle_animation(self.creature.stage)
+                elif self.creature.current_state == self.creature.CREATURE_STATES.SLEEP and self.creature.current_state_counter == 0:
+                    current_anim, overlay_anim, has_overlay = self.trigger_sleep_animation(self.creature.stage)
+                elif self.creature.current_state == self.creature.CREATURE_STATES.DEATH and self.creature.current_state_counter == 0:
                     anim_offset = 3
-                    current_anim, overlay_anim, has_overlay = self.trigger_death_animation(stage)
-                elif self.current_state == self.CREATURE_STATES.EAT and self.current_state_counter == 0:
+                    current_anim, overlay_anim, has_overlay = self.trigger_death_animation(self.creature.stage)
+                elif self.creature.current_state == self.creature.CREATURE_STATES.EAT and self.creature.current_state_counter == 0:
                     overlay_frame, overlay_anim, has_overlay = self.trigger_eat_animation()
-                elif self.current_state == self.CREATURE_STATES.CLEAN and self.current_state_counter == 0:
+                elif self.creature.current_state == self.creature.CREATURE_STATES.CLEAN and self.creature.current_state_counter == 0:
                     anim_offset = 0
                     pygame.time.set_timer(g_interface.UPDATE_GAME_EVENT, int(g_interface.SECOND / 10))
                     overlay_frame, overlay_anim, has_overlay = self.trigger_clean_animation()
 
-                if self.current_state == self.CREATURE_STATES.IDLE:
-                    if pet['waste'] >= self.WASTE_EXPUNGE_LEVEL:
+                if self.creature.current_state == self.creature.CREATURE_STATES.IDLE:
+                    if self.creature.pet['waste'] >= self.creature.WASTE_EXPUNGE_LEVEL:
                         overlay_anim = self.OVERLAY_STINK
                         has_overlay = True
-                    elif pet['energy'] <= self.ENERGY_TIRED_LEVEL or pet['hunger'] >= self.HUNGER_NEEDSTOEAT_LEVEL \
-                            or pet['waste'] >= self.WASTE_EXPUNGE_LEVEL - self.WASTE_EXPUNGE_LEVEL / 3:
-                        overlay_anim = self.OVERLAY_EXCLAIM
+                    elif self.creature.pet['energy'] <= self.creature.ENERGY_TIRED_LEVEL or self.creature.pet[
+                        'hunger'] >= self.creature.HUNGER_NEEDSTOEAT_LEVEL \
+                            or self.creature.pet['waste'] >= self.creature.WASTE_EXPUNGE_LEVEL - self.creature.WASTE_EXPUNGE_LEVEL / 3:
+                        overlay_anim = self.creature.OVERLAY_EXCLAIM
                         has_overlay = True
 
                 if has_overlay:
@@ -348,20 +363,10 @@ class TamagotchiEmulator:
                     overlay_frame = self.get_next_frame(overlay_anim, overlay_frame)
                     print("next overlay_frame: " + str(overlay_frame))
                 update_game = False
-                self.current_state_counter += 1
-            g_interface.render(current_anim, anim_frame, has_overlay, anim_offset, overlay_frame, overlay_anim, pet,
+                self.creature.current_state_counter += 1
+            g_interface.render(current_anim, anim_frame, has_overlay, anim_offset, overlay_frame, overlay_anim,
+                               self.creature.pet,
                                selid)
-
-    def handle_evolution(self, pet, stage):
-        if stage == 0 and pet['age'] > self.AGE_HATCH:
-            print("evolving")
-            stage += 1
-            self.set_current_state(self.current_state)
-        if stage == 1 and pet['age'] > self.AGE_MATURE:
-            print("evolving")
-            stage += 1
-            self.set_current_state(self.current_state)
-        return stage
 
 
 class GraphicalInterface:
