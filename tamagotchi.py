@@ -1,5 +1,4 @@
-# Tamagotchi - A port of the Tamagotchi Emulator by aerospark: https://goo.gl/gaZ1fA            
-# Copyright (C) 2017 Ryan Salvador
+# Code created starting from https://gist.github.com/ryesalvador/e88cb2b4bbe0694d175ef2d7338abd07
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -16,61 +15,62 @@
 from enum import Enum
 
 import pygame, random, sys, os, platform
-from IPython.lib.display import Code
 from pygame.locals import *
 
 
 class CreatureSM(object):
-    class CreatureStates(Enum):
+    class States(Enum):
         IDLE = 0
         EAT = 1
         CLEAN = 2
         SLEEP = 3
         DEATH = 4
 
-    class CreatureTransitions(Enum):
-        IDLE_TO_IDLE = 0
-        IDLE_TO_EAT = 1
-        EAT_TO_EAT = 2
-        EAT_TO_IDLE = 3
-        IDLE_TO_CLEAN = 4
-        CLEAN_TO_CLEAN = 5
-        CLEAN_TO_IDLE = 6
-        IDLE_TO_SLEEP = 7
-        SLEEP_TO_SLEEP = 8
-        SLEEP_TO_IDLE = 9
-        IDLE_TO_DEATH = 10
+    class Transitions(Enum):
+        NONE = 0
+        IDLE_TO_IDLE = 1
+        IDLE_TO_EAT = 2
+        EAT_TO_EAT = 3
+        EAT_TO_IDLE = 4
+        IDLE_TO_CLEAN = 5
+        CLEAN_TO_CLEAN = 6
+        CLEAN_TO_IDLE = 7
+        IDLE_TO_SLEEP = 8
+        SLEEP_TO_SLEEP = 9
+        SLEEP_TO_IDLE = 10
+        IDLE_TO_DEATH = 11
 
     def __init__(self):
-        self.current_state = None
-        self.current_transition = None
-        self.set_current_state(self.CreatureStates.IDLE)
+        self.__current_state__ = None
+        self.__current_transition__ = None
+        self.set_current_state(self.States.IDLE, self.Transitions.NONE)
         self.current_state_counter = 0
 
-    def set_current_state(self, state):
-        self.current_state = state
+    def set_current_state(self, state, transition):
+        self.__current_state__ = state
         self.current_state_counter = 0
+        self.set_current_transition(transition)
 
     def set_current_transition(self, transition):
         print("set_current_transition: " + str(transition))
-        self.current_transition = transition
+        self.__current_transition__ = transition
 
     def current_state_is(self, state):
-        return self.current_state is state
+        return self.__current_state__ is state
 
 
 class Creature(CreatureSM):
-    AGE_HATCH = 8  # changed. prev value: 128
-    AGE_MATURE = 96  # changed. prev value: 796
-    AGE_DEATHFROMNATURALCAUSES = 192  # changed. prev value: 8192
-    HUNGER_CANEAT = 32
-    HUNGER_NEEDSTOEAT_LEVEL = 128
-    HUNGER_SICKFROMNOTEATING = 256
-    HUNGER_DEADFROMNOTEATING_LEVEL = 512
-    ENERGY_CANSLEEP = 500  # changed. prev value: 150
-    ENERGY_TIRED_LEVEL = 20  # changed. prev value: 64
-    ENERGY_PASSOUT = 8
-    WASTE_EXPUNGE_LEVEL = 20  # changed. prev value: 256
+    AGE_HATCH = 128
+    AGE_MATURE = 796
+    AGE_DEATH_FROM_NATURAL_CAUSES = 8192
+    HUNGER_CAN_EAT = 32
+    HUNGER_NEEDS_TO_EAT_LEVEL = 128
+    HUNGER_SICK_FROM_NOT_EATING = 256
+    HUNGER_DEAD_FROM_NOT_EATING_LEVEL = 512
+    ENERGY_CAN_SLEEP = 150
+    ENERGY_TIRED_LEVEL = 64
+    ENERGY_PASS_OUT = 8
+    WASTE_EXPUNGE_LEVEL = 256
 
     def __init__(self):
         super(Creature, self).__init__()
@@ -113,6 +113,9 @@ class TamagotchiEmulator:
     if platform.system() == 'Windows':
         os.environ['SDL_VIDEODRIVER'] = 'windib'
 
+    UPDATE_GAME_LOGIC_EVENT = USEREVENT + 1
+    SECOND = 1000
+
     class COMMANDS(Enum):
         NONE = -1
         EAT = 0
@@ -124,19 +127,21 @@ class TamagotchiEmulator:
         self.creature = Creature()
 
     def main(self):
+        pygame.init()
+        pygame.time.set_timer(self.UPDATE_GAME_LOGIC_EVENT, self.SECOND)
         g_interface = GraphicalInterface();
-
-        selid = 0
         curr_command = self.COMMANDS.NONE
-        update_game = False
+        update_game_logic = False
 
         # Game loop
         while True:
             g_interface.clean_screen()
 
             # Event handler
-            for _ in pygame.event.get(g_interface.UPDATE_GAME_EVENT):
-                update_game = True
+            for _ in pygame.event.get(self.UPDATE_GAME_LOGIC_EVENT):
+                update_game_logic = True
+
+            g_interface.main_display.update_animation_event()
 
             g_interface.handle_gui_event()
 
@@ -144,7 +149,7 @@ class TamagotchiEmulator:
                 curr_command = g_interface.curr_cmd['command']
 
             # Game logic
-            if update_game:
+            if update_game_logic:
                 # evolution phase
                 self.creature.handle_evolution()
 
@@ -152,50 +157,50 @@ class TamagotchiEmulator:
                 if curr_command == self.COMMANDS.SWITCH_LIGHT:
                     self.light = not self.light
 
-                if self.creature.current_state_is(self.creature.CreatureStates.IDLE):
+                if self.creature.current_state_is(self.creature.States.IDLE):
                     self.creature.do_step()
 
                     if self.creature.stage > 0:
                         if self.light and curr_command == self.COMMANDS.EAT:
-                            self.creature.set_current_transition(self.creature.CreatureTransitions.IDLE_TO_EAT)
-                            self.creature.set_current_state(self.creature.CreatureStates.EAT)
-                            # curr_command = self.COMMANDS.NONE
+                            self.creature.set_current_state(self.creature.States.EAT,
+                                                            self.creature.Transitions.IDLE_TO_EAT)
                         elif self.light and curr_command == self.COMMANDS.CLEAN:
-                            self.creature.set_current_transition(self.creature.CreatureTransitions.IDLE_TO_CLEAN)
-                            self.creature.set_current_state(self.creature.CreatureStates.CLEAN)
-                        elif not self.light and self.creature.status['energy'] <= self.creature.ENERGY_CANSLEEP:
-                            self.creature.set_current_transition(self.creature.CreatureTransitions.IDLE_TO_SLEEP)
-                            self.creature.set_current_state(self.creature.CreatureStates.SLEEP)
-                        elif self.creature.status['energy'] < self.creature.ENERGY_PASSOUT:
+                            self.creature.set_current_state(self.creature.States.CLEAN,
+                                                            self.creature.Transitions.IDLE_TO_CLEAN)
+                        elif not self.light and self.creature.status['energy'] <= self.creature.ENERGY_CAN_SLEEP:
+                            self.creature.set_current_state(self.creature.States.SLEEP,
+                                                            self.creature.Transitions.IDLE_TO_SLEEP)
+                        elif self.creature.status['energy'] < self.creature.ENERGY_PASS_OUT:
                             self.creature.status['happiness'] -= 64
-                            self.creature.set_current_transition(self.creature.CreatureTransitions.IDLE_TO_SLEEP)
-                            self.creature.set_current_state(self.creature.CreatureStates.SLEEP)
-                        elif self.creature.status['hunger'] >= self.creature.HUNGER_DEADFROMNOTEATING_LEVEL or \
+                            self.creature.set_current_state(self.creature.States.SLEEP,
+                                                            self.creature.Transitions.IDLE_TO_SLEEP)
+                        elif self.creature.status['hunger'] >= self.creature.HUNGER_DEAD_FROM_NOT_EATING_LEVEL or \
                                 self.creature.status[
-                                    'age'] >= self.creature.AGE_DEATHFROMNATURALCAUSES:
-                            self.creature.set_current_transition(self.creature.CreatureTransitions.IDLE_TO_DEATH)
-                            self.creature.set_current_state(self.creature.CreatureStates.DEATH)
-                elif self.creature.current_state_is(self.creature.CreatureStates.EAT):
+                                    'age'] >= self.creature.AGE_DEATH_FROM_NATURAL_CAUSES:
+                            self.creature.set_current_state(self.creature.States.DEATH,
+                                                            self.creature.Transitions.IDLE_TO_DEATH)
+                elif self.creature.current_state_is(self.creature.States.EAT):
                     if self.creature.current_state_counter == 6:
-                        self.creature.set_current_transition(self.creature.CreatureTransitions.EAT_TO_IDLE)
-                        self.creature.set_current_state(self.creature.CreatureStates.IDLE)
+                        self.creature.set_current_state(self.creature.States.IDLE,
+                                                        self.creature.Transitions.EAT_TO_IDLE)
                         self.creature.status['hunger'] = 0
                     else:
-                        self.creature.set_current_transition(self.creature.CreatureTransitions.EAT_TO_EAT)
-                elif self.creature.current_state_is(self.creature.CreatureStates.SLEEP):
+                        self.creature.set_current_transition(self.creature.Transitions.EAT_TO_EAT)
+                elif self.creature.current_state_is(self.creature.States.SLEEP):
                     if self.creature.status['energy'] >= 256 or self.light:
-                        self.creature.set_current_transition(self.creature.CreatureTransitions.SLEEP_TO_IDLE)
-                        self.creature.set_current_state(self.creature.CreatureStates.IDLE)
+                        self.creature.set_current_state(self.creature.States.IDLE,
+                                                        self.creature.Transitions.SLEEP_TO_IDLE)
                     else:
-                        self.creature.set_current_transition(self.creature.CreatureTransitions.SLEEP_TO_SLEEP)
+                        self.creature.set_current_transition(self.creature.Transitions.SLEEP_TO_SLEEP)
                         self.creature.status['energy'] += 8
-                elif self.creature.current_state_is(self.creature.CreatureStates.CLEAN):
-                    if self.creature.current_state_counter == 33:
-                        self.creature.set_current_transition(self.creature.CreatureTransitions.CLEAN_TO_IDLE)
-                        self.creature.set_current_state(self.creature.CreatureStates.IDLE)
+                elif self.creature.current_state_is(self.creature.States.CLEAN):
+                    print(str(self.creature.current_state_counter))
+                    if self.creature.current_state_counter == 4:
+                        self.creature.set_current_state(self.creature.States.IDLE,
+                                                        self.creature.Transitions.CLEAN_TO_IDLE)
                         self.creature.status['waste'] = 0
                     else:
-                        self.creature.set_current_transition(self.creature.CreatureTransitions.CLEAN_TO_CLEAN)
+                        self.creature.set_current_transition(self.creature.Transitions.CLEAN_TO_CLEAN)
                 curr_command = self.COMMANDS.NONE
 
                 # signal phase
@@ -204,28 +209,26 @@ class TamagotchiEmulator:
                 else:
                     self.creature.signals['stink'] = 0
                 if self.creature.status['energy'] <= self.creature.ENERGY_TIRED_LEVEL or self.creature.status[
-                    'hunger'] >= self.creature.HUNGER_NEEDSTOEAT_LEVEL \
+                    'hunger'] >= self.creature.HUNGER_NEEDS_TO_EAT_LEVEL \
                         or self.creature.status[
                     'waste'] >= self.creature.WASTE_EXPUNGE_LEVEL - self.creature.WASTE_EXPUNGE_LEVEL / 3:
                     self.creature.signals['exclaim'] += 1
                 else:
                     self.creature.signals['exclaim'] = 0
 
-                g_interface.update_animation(self.creature.current_state, self.creature.current_transition,
-                                             self.creature.stage, self.creature.signals['stink'],
-                                             self.creature.signals['exclaim'],self.light)
-
-                update_game = False
+                update_game_logic = False
                 self.creature.current_state_counter += 1
 
+            g_interface.update_animation(self.creature.__current_state__, self.creature.__current_transition__,
+                                         self.creature.stage, self.creature.signals['stink'],
+                                         self.creature.signals['exclaim'], self.light)
+
+            g_interface.render_buttons()
+            g_interface.render_debug_info(self.creature.status)
             g_interface.render_main_display()
-            g_interface.render(self.creature.status)
 
 
 class GraphicalInterface:
-    UPDATE_GAME_EVENT = USEREVENT + 1
-    SECOND = 1000
-
     FPS = 30
     SCREEN_WIDTH = 500
     SCREEN_HEIGHT = 520
@@ -234,11 +237,11 @@ class GraphicalInterface:
     BG_COLOR = (160, 178, 129)
     PIXEL_COLOR = (10, 12, 6)
     NON_PIXEL_COLOR = (156, 170, 125)
-    TRANSPARENT_COLOR = (0, 0, 0, 0)
-    BTN_BORDER_COLOR = (128, 12, 24)
-    BTN_CENTER_COLOR = (200, 33, 44)
 
-    class Animations:
+    class MainDisplay:
+
+        UPDATE_ANIMATION_EVENT = USEREVENT + 2
+        SECOND = 1000
         # Animations
         __IDLE_EGG__ = (
             (0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x7e000,
@@ -357,138 +360,176 @@ class GraphicalInterface:
             (0x2, 0x2, 0x2, 0x2, 0x2, 0x2, 0x2, 0x2, 0x2, 0x2, 0x2, 0x2, 0x2, 0x2, 0x2, 0x2, 0x2, 0x2, 0x2, 0x2,
              0x2, 0x2, 0x2, 0x2, 0x2, 0x2, 0x2, 0x2, 0x2, 0x2, 0x2, 0x2),)
 
-    # Components
-    SELECTOR = (
-        0x7800000f, 0x60000003, 0x40000001, 0x40000001, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
-        0x0,
-        0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x40000001, 0x40000001, 0x60000003, 0x7800000f)
-    FEED = (
-        0x0, 0x0, 0x0, 0x0, 0x0, 0x7805a0, 0x7c05a0, 0x7c05a0, 0x7c05a0, 0x7c05a0, 0x7c05a0, 0x7c05a0, 0x7c07e0,
-        0x7c07e0,
-        0x7803c0, 0x7803c0, 0x7803c0, 0x7803c0, 0x7803c0, 0x7803c0, 0x7803c0, 0x7803c0, 0x7803c0, 0x7803c0, 0x7803c0,
-        0x7803c0,
-        0x7803c0, 0x7803c0, 0x300180, 0x0, 0x0, 0x0)
-    FLUSH = (
-        0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x2000000, 0x5000000, 0x5000000, 0x4800000, 0x4800000, 0x4400000, 0x4400000,
-        0x4400000, 0x2200000, 0x2200000, 0x1200000, 0xffff00, 0x1200280, 0x11ffd00, 0x1000080, 0x1000080, 0x1000080,
-        0x1000080, 0x1000080, 0x1000080, 0x1000040, 0xffff80, 0x0, 0x0, 0x0)
-    ZZZ = (
-        0x0, 0x0, 0x0, 0x0, 0xf800000, 0x4000000, 0x2000000, 0x1000000, 0xf800000, 0x0, 0x0, 0x3c00000, 0x1000000,
-        0x800000,
-        0x3c00000, 0x0, 0x700000, 0x200000, 0x700000, 0x0, 0x80000, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
-        0x0)
+        PIXEL_COLOR = (10, 12, 6)
+        NON_PIXEL_COLOR = (156, 170, 125)
+
+        def __init__(self, screen):
+            self.update_game_animation = False
+            self.eat_frame_number = 0
+            self.death_frame_number = 0
+            self.sleep_frame_number = 0
+            self.current_anim_offset = None
+            self.current_anim_frame_number = 0
+            self.creature_image = None
+            self.screen = screen
+            pygame.time.set_timer(self.UPDATE_ANIMATION_EVENT, self.SECOND)
+
+        @staticmethod
+        def get_random_offset():
+            return random.randint(-3, 2)
+
+        @staticmethod
+        def get_next_frame_number(animation_frames, current_frame_number):
+            return (current_frame_number + 1) % len(animation_frames)
+
+        def display_creature_image(self, animations, stage):
+            self.creature_image = animations[stage][self.current_anim_frame_number]
+            self.current_anim_frame_number = self.get_next_frame_number(animations[stage],
+                                                                        self.current_anim_frame_number)
+
+        def overlap_image(self, overlay_anim, frame):
+            overlay_image = overlay_anim[frame]
+            self.creature_image = self.bit_or(self.creature_image, overlay_image)
+
+        def update_animation(self, current_state, current_transition, stage, stink, exclaim, light):
+
+            print("current_state: " + str(current_state))
+            print("current_transition: " + str(current_transition))
+            print("stage: " + str(stage))
+
+            if current_state is CreatureSM.States.IDLE:
+                pygame.time.set_timer(self.UPDATE_ANIMATION_EVENT, self.SECOND)
+                self.current_anim_offset = self.get_random_offset()
+                self.display_creature_image(self.IDLE_ANIMATIONS, stage)
+            elif current_state is CreatureSM.States.SLEEP:
+                self.current_anim_offset = 0
+                self.display_creature_image(self.SLEEP_ANIMATIONS, stage)
+                self.overlap_image(self.OVERLAY_ZZZ, self.sleep_frame_number)
+                self.sleep_frame_number = self.get_next_frame_number(self.OVERLAY_ZZZ,
+                                                                     self.sleep_frame_number)
+            elif current_state is CreatureSM.States.DEATH:
+                self.current_anim_offset = 3
+                self.display_creature_image(self.SLEEP_ANIMATIONS, stage)
+                self.overlap_image(self.OVERLAY_DEAD, self.death_frame_number)
+                self.death_frame_number = self.get_next_frame_number(self.OVERLAY_DEAD,
+                                                                     self.death_frame_number)
+            elif current_state is CreatureSM.States.EAT:
+                self.display_creature_image(self.IDLE_ANIMATIONS, stage)
+                self.overlap_image(self.OVERLAY_EAT, self.eat_frame_number)
+                self.eat_frame_number = self.get_next_frame_number(self.OVERLAY_EAT, self.eat_frame_number)
+                self.current_anim_offset = self.get_random_offset()
+            elif current_state is CreatureSM.States.CLEAN:
+                pygame.time.set_timer(self.UPDATE_ANIMATION_EVENT, int(self.SECOND / 10))
+                self.current_anim_frame_number = 0
+                self.display_creature_image(self.IDLE_ANIMATIONS, stage)
+                self.overlap_image(self.OVERLAY_CLEAN, 0)
+                self.current_anim_offset -= 1
+
+            if stink != 0:
+                self.overlap_image(self.OVERLAY_STINK, stink % 2)
+
+            if exclaim != 0:
+                self.overlap_image(self.OVERLAY_EXCLAIM, exclaim % 2)
+
+            if not light:
+                self.creature_image = self.bit_not(self.creature_image)
+
+        def render_main_display(self):
+            # Render display
+            self.render_display(self.creature_image, self.PIXEL_COLOR, self.NON_PIXEL_COLOR, self.current_anim_offset)
+
+        @staticmethod
+        def bit_or(current_frame, overlay_frame):
+            l = []
+            for i in range(32):
+                b = current_frame[i] | overlay_frame[i]
+                l.append(b)
+            return tuple(l)
+
+        @staticmethod
+        def bit_not(current_frame):
+            l = []
+            for i in range(32):
+                b = ~current_frame[i]
+                l.append(b)
+            return tuple(l)
+
+        @staticmethod
+        def get_bits(number, num_bits):
+            """Solution from http://stackoverflow.com/questions/16659944/iterate-between-bits-in-a-binary-number"""
+            return [(number >> bit) & 1 for bit in range(num_bits - 1, -1, -1)]
+
+        def render_display(self, image_data, fg_color, bg_color, off=0, percv=0):
+            if image_data is not None:
+                for y in range(32):
+                    bits = self.get_bits(image_data[y], 32 + off)
+                    bits.reverse()
+                    for x in range(off, 32 + off):
+                        color = bg_color
+                        if x in range(len(bits)):
+                            if bits[x] or percv > 0 and y > 11 and x > 2 and y < 17 and x < 3 + percv:
+                                color = fg_color
+                        pygame.draw.rect(self.screen, color, ((x - off) * 10 + 32, y * 10 + 64, 8, 8))
+
+        def update_animation_event(self):
+            for _ in pygame.event.get(self.UPDATE_ANIMATION_EVENT):
+                self.update_game_animation = True
+
+    BUTTON_H = 32
+    BUTTON_W = 32
 
     def __init__(self):
-        # global screen, clock
-        self.eat_frame_number = 0
-        self.death_frame_number = 0
-        self.sleep_frame_number = 0
-        self.current_anim_offset = None
-        self.current_anim_frame_number = 0
-        self.curr_cmd = None
-        self.creature_image = None
         self.mouse_x = 0
         self.mouse_y = 0
-        pygame.init()
+        self.curr_cmd = None
+        self.eat_image = pygame.transform.scale(pygame.image.load('images/bread.png'),
+                                                (self.BUTTON_W, self.BUTTON_H))
+        self.clean_image = pygame.transform.scale(pygame.image.load('images/clean.png'),
+                                                  (self.BUTTON_W, self.BUTTON_H))
+        self.light_image = pygame.transform.scale(pygame.image.load('images/light.png'),
+                                                  (self.BUTTON_W, self.BUTTON_H))
+        self.select_image = pygame.transform.scale(pygame.image.load('images/select.png'),
+                                                   (self.BUTTON_W, self.BUTTON_H))
         self.clock = pygame.time.Clock()
         self.screen = pygame.display.set_mode((self.SCREEN_WIDTH, self.SCREEN_HEIGHT), 0, 32)
         pygame.display.set_caption('Tamagotchi')
         self.font = pygame.font.SysFont('Arial', 14)
-        self.selector_img = pygame.Surface((32, 32)).convert_alpha()
-        GraphicalInterface.render_component(self.selector_img, self.SELECTOR, self.PIXEL_COLOR, self.TRANSPARENT_COLOR)
-        pygame.time.set_timer(self.UPDATE_GAME_EVENT, self.SECOND)
 
-    @staticmethod
-    def get_random_offset():
-        return random.randint(-3, 2)
-
-    @staticmethod
-    def get_next_frame_number(animation_frames, current_frame_number):
-        return (current_frame_number + 1) % len(animation_frames)
-
-    def display_creature_image(self, animations, stage):
-        self.creature_image = animations[stage][self.current_anim_frame_number]
-        self.current_anim_frame_number = self.get_next_frame_number(animations[stage], self.current_anim_frame_number)
-
-    def overlap_image(self,overlay_anim, frame):
-        overlay_image = overlay_anim[frame]
-        self.creature_image = GraphicalInterface.bitor(self.creature_image, overlay_image)
-
-    def update_animation(self, current_state, current_transition, stage, stink, exclaim, light):
-
-        print("current_state: " + str(current_state))
-        print("current_transition: " + str(current_transition))
-        print("stage: " + str(stage))
-
-        if current_state is CreatureSM.CreatureStates.IDLE:
-            pygame.time.set_timer(self.UPDATE_GAME_EVENT, self.SECOND)
-            self.current_anim_offset = self.get_random_offset()
-            self.display_creature_image(self.Animations.IDLE_ANIMATIONS, stage)
-        elif current_state is CreatureSM.CreatureStates.SLEEP:
-            self.current_anim_offset = 0
-            self.display_creature_image(self.Animations.SLEEP_ANIMATIONS, stage)
-            self.overlap_image(self.Animations.OVERLAY_ZZZ,self.sleep_frame_number)
-            self.sleep_frame_number = self.get_next_frame_number(self.Animations.OVERLAY_ZZZ, self.sleep_frame_number)
-        elif current_state is CreatureSM.CreatureStates.DEATH:
-            self.current_anim_offset = 3
-            self.display_creature_image(self.Animations.SLEEP_ANIMATIONS, stage)
-            self.overlap_image(self.Animations.OVERLAY_DEAD, self.death_frame_number)
-            self.death_frame_number = self.get_next_frame_number(self.Animations.OVERLAY_DEAD, self.death_frame_number)
-        elif current_state is CreatureSM.CreatureStates.EAT:
-            self.display_creature_image(self.Animations.IDLE_ANIMATIONS, stage)
-            self.overlap_image(self.Animations.OVERLAY_EAT, self.eat_frame_number)
-            self.eat_frame_number = self.get_next_frame_number(self.Animations.OVERLAY_EAT, self.eat_frame_number)
-            self.current_anim_offset = self.get_random_offset()
-        elif current_state is CreatureSM.CreatureStates.CLEAN:
-            pygame.time.set_timer(self.UPDATE_GAME_EVENT, int(self.SECOND / 10))
-            self.current_anim_frame_number = 0
-            self.display_creature_image(self.Animations.IDLE_ANIMATIONS, stage)
-            self.overlap_image(self.Animations.OVERLAY_CLEAN, 0)
-            self.current_anim_offset -= 1
-
-        if stink != 0:
-            self.overlap_image(self.Animations.OVERLAY_STINK, stink%2)
-
-        if exclaim != 0:
-            self.overlap_image(self.Animations.OVERLAY_EXCLAIM, exclaim%2)
-
-        if not light:
-            self.creature_image = GraphicalInterface.bitnot(self.creature_image)
+        self.main_display = self.MainDisplay(self.screen)
 
     def render_main_display(self):
-        # Render display
-        if self.creature_image is not None:
-            self.render_display(self.creature_image, self.PIXEL_COLOR, self.NON_PIXEL_COLOR, self.current_anim_offset)
+        self.main_display.render_main_display()
+        pygame.display.update()
+        self.clock.tick(self.FPS)
 
-    def render(self, pet):
+    def update_animation(self, current_state, current_transition, stage, stink, exclaim, light):
+        if self.main_display.update_game_animation:
+            self.main_display.update_animation(current_state, current_transition, stage, stink, exclaim, light)
+            self.main_display.update_game_animation = False
 
+    def render_buttons(self):
         # Render components
-        buttons_images = [{'command': TamagotchiEmulator.COMMANDS.EAT, 'image': self.FEED},
-                          {'command': TamagotchiEmulator.COMMANDS.CLEAN, 'image': self.FLUSH},
-                          # {'command': TamagotchiEmulator.COMMANDS.NONE, 'image': self.HEALTH},
-                          {'command': TamagotchiEmulator.COMMANDS.SWITCH_LIGHT, 'image': self.ZZZ}]
+        buttons_images = [{'command': TamagotchiEmulator.COMMANDS.EAT, 'image': self.eat_image},
+                          {'command': TamagotchiEmulator.COMMANDS.CLEAN, 'image': self.clean_image},
+                          {'command': TamagotchiEmulator.COMMANDS.SWITCH_LIGHT, 'image': self.light_image}]
 
         self.curr_cmd = None
         for i in range(len(buttons_images)):
-            button_h = 32
-            button_w = 32
-            button_surface = pygame.Surface((button_w, button_h))
-            GraphicalInterface.render_component(button_surface, buttons_images[i]['image'], self.PIXEL_COLOR,
-                                                self.NON_PIXEL_COLOR)
             button_x = (i + 1) * 64
             button_y = 16
-            buttons_images[i]['rect'] = pygame.Rect(button_x, button_y, button_w, button_h)
-            buttons_images[i]['pos'] = (button_x, button_y)
-            if buttons_images[i]['rect'].collidepoint(self.mouse_x, self.mouse_y):
-                self.curr_cmd = buttons_images[i]
+            self.screen.blit(buttons_images[i]['image'], (button_x, button_y))
 
-            self.screen.blit(pygame.transform.flip(button_surface, True, False), (button_x, button_y))
+            button_rect = pygame.Rect(button_x, button_y, self.BUTTON_W, self.BUTTON_H)
+            buttons_images[i]['pos'] = (button_x, button_y)
+            if button_rect.collidepoint(self.mouse_x, self.mouse_y):
+                self.curr_cmd = {'pos': (button_x, button_y), 'command': buttons_images[i]['command']}
 
         # Render selector
         if self.curr_cmd is not None:
-            self.screen.blit(pygame.transform.flip(self.selector_img, True, False),
+            self.screen.blit(self.select_image,
                              (self.curr_cmd['pos'][0], self.curr_cmd['pos'][1]))
 
+    def render_debug_info(self, pet):
         # Render debug
         surf = self.font.render('DEBUG --', True, self.PIXEL_COLOR)
         self.screen.blit(surf, (360, 60))
@@ -497,56 +538,9 @@ class GraphicalInterface:
         for pos, y in enumerate(i for i in range(70, 120, 10)):
             surf = self.font.render(debug[0][pos] % pet[debug[1][pos]], True, self.PIXEL_COLOR)
             self.screen.blit(surf, (360, y))
-        pygame.display.update()
-        self.clock.tick(self.FPS)
-
-    @staticmethod
-    def bitor(current_frame, overlay_frame):
-        l = []
-        for i in range(32):
-            b = current_frame[i] | overlay_frame[i]
-            l.append(b)
-        return tuple(l)
-
-    @staticmethod
-    def bitnot(current_frame):
-        l = []
-        for i in range(32):
-            b = ~current_frame[i]
-            l.append(b)
-        return tuple(l)
-
-    @staticmethod
-    def get_bits(number, num_bits):
-        """Solution from http://stackoverflow.com/questions/16659944/iterate-between-bits-in-a-binary-number"""
-        return [(number >> bit) & 1 for bit in range(num_bits - 1, -1, -1)]
-
-    def render_display(self, image_data, fg_color, bg_color, off=0, percv=0):
-        for y in range(32):
-            bits = GraphicalInterface.get_bits(image_data[y], 32 + off)
-            bits.reverse()
-            for x in range(off, 32 + off):
-                color = bg_color
-                if x in range(len(bits)):
-                    if bits[x] or percv > 0 and y > 11 and x > 2 and y < 17 and x < 3 + percv:
-                        color = fg_color
-                pygame.draw.rect(self.screen, color, ((x - off) * 10 + 32, y * 10 + 64, 8, 8))
-
-    @staticmethod
-    def render_component(surface, image_data, fg_color, bg_color=(255, 255, 255)):
-        pixels = pygame.PixelArray(surface)
-        for y in range(surface.get_height()):
-            bits = GraphicalInterface.get_bits(image_data[y], surface.get_width())
-            for x, bit in enumerate(bits):
-                if bit:
-                    pixels[x][y] = fg_color
-                else:
-                    pixels[x][y] = bg_color
-        del pixels
 
     def clean_screen(self):
         self.screen.fill(self.BG_COLOR)
-        # self.overlay_anim = None
 
     def handle_gui_event(self):
         self.mouse_x = 0
