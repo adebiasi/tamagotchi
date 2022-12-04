@@ -52,7 +52,6 @@ class CreatureSM(object):
         self.set_current_transition(transition)
 
     def set_current_transition(self, transition):
-        print("set_current_transition: " + str(transition))
         self.__current_transition__ = transition
 
     def current_state_is(self, state):
@@ -108,6 +107,11 @@ class Creature(CreatureSM):
         if self.status['waste'] >= self.WASTE_EXPUNGE_LEVEL:
             self.status['happiness'] -= 1
 
+    def get_debug_info(self):
+        debug_info = self.status.copy()
+        debug_info['state']= self.__current_state__.name
+        debug_info['transition'] = self.__current_transition__.name
+        return debug_info
 
 class TamagotchiEmulator:
     if platform.system() == 'Windows':
@@ -221,17 +225,17 @@ class TamagotchiEmulator:
 
             g_interface.update_animation(self.creature.__current_state__, self.creature.__current_transition__,
                                          self.creature.stage, self.creature.signals['stink'],
-                                         self.creature.signals['exclaim'], self.light)
+                                         self.creature.signals['exclaim'])
 
             g_interface.render_buttons()
-            g_interface.render_debug_info(self.creature.status)
-            g_interface.render_main_display()
+            g_interface.render_debug_info(self.creature.get_debug_info())
+            g_interface.render_main_display(not self.light)
 
 
 class GraphicalInterface:
     FPS = 30
-    SCREEN_WIDTH = 500
-    SCREEN_HEIGHT = 520
+    SCREEN_WIDTH = 550
+    SCREEN_HEIGHT = 400
 
     # Colors
     BG_COLOR = (160, 178, 129)
@@ -391,11 +395,7 @@ class GraphicalInterface:
             overlay_image = overlay_anim[frame]
             self.creature_image = self.bit_or(self.creature_image, overlay_image)
 
-        def update_animation(self, current_state, current_transition, stage, stink, exclaim, light):
-
-            print("current_state: " + str(current_state))
-            print("current_transition: " + str(current_transition))
-            print("stage: " + str(stage))
+        def update_animation(self, current_state, current_transition, stage, stink, exclaim):
 
             if current_state is CreatureSM.States.IDLE:
                 pygame.time.set_timer(self.UPDATE_ANIMATION_EVENT, self.SECOND)
@@ -431,12 +431,15 @@ class GraphicalInterface:
             if exclaim != 0:
                 self.overlap_image(self.OVERLAY_EXCLAIM, exclaim % 2)
 
-            if not light:
-                self.creature_image = self.bit_not(self.creature_image)
-
-        def render_main_display(self):
+        def render_main_display(self, invert_colors):
             # Render display
-            self.render_display(self.creature_image, self.PIXEL_COLOR, self.NON_PIXEL_COLOR, self.current_anim_offset)
+            fg_color = self.PIXEL_COLOR
+            bg_color = self.NON_PIXEL_COLOR
+            if invert_colors:
+                fg_color = self.NON_PIXEL_COLOR
+                bg_color = self.PIXEL_COLOR
+
+            self.render_display(self.creature_image, fg_color, bg_color, self.current_anim_offset)
 
         @staticmethod
         def bit_or(current_frame, overlay_frame):
@@ -461,6 +464,9 @@ class GraphicalInterface:
 
         def render_display(self, image_data, fg_color, bg_color, off=0, percv=0):
             if image_data is not None:
+                for y in range(32):
+                    for x in range(32):
+                        pygame.draw.rect(self.screen, fg_color, ((x) * 10 + 32, y * 10 + 64, 8, 8))
                 for y in range(32):
                     bits = self.get_bits(image_data[y], 32 + off)
                     bits.reverse()
@@ -497,14 +503,14 @@ class GraphicalInterface:
 
         self.main_display = self.MainDisplay(self.screen)
 
-    def render_main_display(self):
-        self.main_display.render_main_display()
+    def render_main_display(self, invert_colors):
+        self.main_display.render_main_display(invert_colors)
         pygame.display.update()
         self.clock.tick(self.FPS)
 
-    def update_animation(self, current_state, current_transition, stage, stink, exclaim, light):
+    def update_animation(self, current_state, current_transition, stage, stink, exclaim):
         if self.main_display.update_game_animation:
-            self.main_display.update_animation(current_state, current_transition, stage, stink, exclaim, light)
+            self.main_display.update_animation(current_state, current_transition, stage, stink, exclaim)
             self.main_display.update_game_animation = False
 
     def render_buttons(self):
@@ -529,15 +535,16 @@ class GraphicalInterface:
             self.screen.blit(self.select_image,
                              (self.curr_cmd['pos'][0], self.curr_cmd['pos'][1]))
 
-    def render_debug_info(self, pet):
+    def render_debug_info(self, debug_info):
         # Render debug
-        surf = self.font.render('DEBUG --', True, self.PIXEL_COLOR)
+        surf = self.font.render('DEBUG INFO:', True, self.PIXEL_COLOR)
         self.screen.blit(surf, (360, 60))
-        debug = (('AGE: %s', 'HUNGER: %s', 'ENERGY: %s', 'WASTE: %d', 'HAPPINESS: %s'), \
-                 ('age', 'hunger', 'energy', 'waste', 'happiness'))
-        for pos, y in enumerate(i for i in range(70, 120, 10)):
-            surf = self.font.render(debug[0][pos] % pet[debug[1][pos]], True, self.PIXEL_COLOR)
-            self.screen.blit(surf, (360, y))
+        debug = (('AGE: %s', 'HUNGER: %s', 'ENERGY: %s', 'WASTE: %d', 'HAPPINESS: %s','STATE: %s', 'TRANSITION: %s'),
+                 ('age', 'hunger', 'energy', 'waste', 'happiness', 'state', 'transition'))
+        y_pos = 15
+        for pos, y in enumerate(i for i in range(0, len(debug_info) * y_pos, y_pos)):
+            surf = self.font.render(debug[0][pos] % debug_info[debug[1][pos]], True, self.PIXEL_COLOR)
+            self.screen.blit(surf, (360, y+80))
 
     def clean_screen(self):
         self.screen.fill(self.BG_COLOR)
