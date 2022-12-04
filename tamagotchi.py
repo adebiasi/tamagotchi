@@ -424,11 +424,11 @@ class GraphicalInterface:
                 self.overlap_image(self.OVERLAY_CLEAN, 0)
                 self.current_anim_offset -= 1
 
-            if stink != 0:
-                self.overlap_image(self.OVERLAY_STINK, stink % 2)
-
-            if exclaim != 0:
-                self.overlap_image(self.OVERLAY_EXCLAIM, exclaim % 2)
+            if current_state is not CreatureSM.States.DEATH:
+                if stink != 0:
+                    self.overlap_image(self.OVERLAY_STINK, stink % 2)
+                if exclaim != 0:
+                    self.overlap_image(self.OVERLAY_EXCLAIM, exclaim % 2)
 
         def render_main_display(self, invert_colors):
             # Render display
