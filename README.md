@@ -1,6 +1,6 @@
 # Tamagotchi
 
-Code created staring from [
+Code created starting from [
 ryesalvador/tamagotchi.py](https://gist.github.com/ryesalvador/e88cb2b4bbe0694d175ef2d7338abd07).
 
 This is what was changed:
