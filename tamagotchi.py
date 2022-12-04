@@ -165,7 +165,12 @@ class TamagotchiEmulator:
                     self.creature.do_step()
 
                     if self.creature.stage > 0:
-                        if self.light and curr_command == self.COMMANDS.EAT:
+                        if self.creature.status['hunger'] >= self.creature.HUNGER_DEAD_FROM_NOT_EATING_LEVEL or \
+                                self.creature.status[
+                                    'age'] >= self.creature.AGE_DEATH_FROM_NATURAL_CAUSES:
+                            self.creature.set_current_state(self.creature.States.DEATH,
+                                                            self.creature.Transitions.IDLE_TO_DEATH)
+                        elif self.light and curr_command == self.COMMANDS.EAT:
                             self.creature.set_current_state(self.creature.States.EAT,
                                                             self.creature.Transitions.IDLE_TO_EAT)
                         elif self.light and curr_command == self.COMMANDS.CLEAN:
@@ -178,11 +183,6 @@ class TamagotchiEmulator:
                             self.creature.status['happiness'] -= 64
                             self.creature.set_current_state(self.creature.States.SLEEP,
                                                             self.creature.Transitions.IDLE_TO_SLEEP)
-                        elif self.creature.status['hunger'] >= self.creature.HUNGER_DEAD_FROM_NOT_EATING_LEVEL or \
-                                self.creature.status[
-                                    'age'] >= self.creature.AGE_DEATH_FROM_NATURAL_CAUSES:
-                            self.creature.set_current_state(self.creature.States.DEATH,
-                                                            self.creature.Transitions.IDLE_TO_DEATH)
                 elif self.creature.current_state_is(self.creature.States.EAT):
                     if self.creature.current_state_counter == 6:
                         self.creature.set_current_state(self.creature.States.IDLE,
