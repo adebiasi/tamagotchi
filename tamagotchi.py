@@ -198,7 +198,6 @@ class TamagotchiEmulator:
                         self.creature.set_current_transition(self.creature.Transitions.SLEEP_TO_SLEEP)
                         self.creature.status['energy'] += 8
                 elif self.creature.current_state_is(self.creature.States.CLEAN):
-                    print(str(self.creature.current_state_counter))
                     if self.creature.current_state_counter == 4:
                         self.creature.set_current_state(self.creature.States.IDLE,
                                                         self.creature.Transitions.CLEAN_TO_IDLE)
